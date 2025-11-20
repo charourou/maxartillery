@@ -5,19 +5,20 @@ Created on Wed Nov 12 09:35:41 2025
 """
 
 import pygame
-from assets import Terrain 
-import math, random
-import numpy as np
+from assets import Terrain, Castle, Shell, Cloud, DT, generate_stars  
 
 # --- Constants ---
 SCREEN_WIDTH = 800
 SCREEN_HEIGHT = 600
-GRAVITY = 0.1
 
 # --- Colors ---
 BLACK = (0, 0, 0)
 WHITE = (255, 255, 255)
-
+# 8-Bit Palette
+MIDNIGHT_BLUE = (20, 20, 60)   # Dark Night Sky
+GRASS_GREEN = (100, 200, 50)   # Bright 8-bit grass
+DIRT_BROWN = (100, 50, 0)      # Dark earth
+STAR_COLOR = (200, 200, 255)   # Slightly blueish stars
 
 # --- Setup Pygame ---
 pygame.init()
@@ -26,144 +27,97 @@ pygame.display.set_caption("Artillery Duel")
 clock = pygame.time.Clock()
 font = pygame.font.SysFont('Arial', 24)
 
-# --- Game Variables ---
+# %% --- Environnment Variables ---
+# Generate 5 clouds and 20 stars
+stars= generate_stars(20, SCREEN_WIDTH, SCREEN_HEIGHT)
+clouds = [Cloud(SCREEN_WIDTH, SCREEN_HEIGHT) for _ in range(5)]
 # Simple terrain as a list of Y-values
 terrain = Terrain([SCREEN_WIDTH,SCREEN_HEIGHT  ])
-
-    
-    
-    
-# Player setup
-player1 = {'x': 100, 'y': terrain.y[100] - 20, 'color': (255, 0, 0), 'angle': 45, 'power': 50, 'health': 100}
-player2 = {'x': 700, 'y': terrain.y[700] - 20, 'color': (0, 0, 255), 'angle': 135, 'power': 50, 'health': 100}
+  
+# --- Create Players ---
+player1 = Castle(100, terrain.y[100], 
+                 image_path='pix/pixil-frame20.png', flipped=False, initial_angle=45)
+player2 = Castle(700, terrain.y[700], 
+                 image_path='pix/pixil-frame20.png', flipped=True, initial_angle=135)
 players = [player1, player2]
 
-# Projectile
-shell = {'x': 0, 'y': 0, 'vel_x': 0, 'vel_y': 0, 'active': False}
+# Projectile - active_shell variable TODO
+active_shell = None
 
 # Game state
 current_player = 0
 running = True
 
-# --- Main Game Loop ---
-while running:
-    # --- Event Handling ---
+# %% --- - - - - -  Event Handling ---
+while running: #  --- Main Game Loop ---
+# Get the current and other player for convenience
+    active_player = players[current_player]
+    other_player = players[(current_player + 1) % 2]
+    
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
         
         # --- Player Input (Only if shell is NOT active) ---
-        if not shell['active'] and event.type == pygame.KEYDOWN:
-            active_player = players[current_player]
-            
+        if event.type == pygame.KEYDOWN and active_shell is None : 
             if event.key == pygame.K_UP:
-                active_player['angle'] += 1
+                active_player.update_angle(1)
             if event.key == pygame.K_DOWN:
-                active_player['angle'] -= 1
+                active_player.update_angle(-1)
             if event.key == pygame.K_RIGHT:
-                active_player['power'] += 1
+                active_player.update_power(1)
             if event.key == pygame.K_LEFT:
-                active_player['power'] -= 1
-                
-            # Clamp values
-            active_player['power'] = max(0, min(100, active_player['power']))
+                active_player.update_power(-1)               
             
-            if event.key == pygame.K_SPACE:
-                
-                # --- FIRE ---
-                angle_rad = math.radians(active_player['angle'])
-                power = active_player['power'] / 5.0 # Scale power
-                
-                shell['vel_x'] = power * math.cos(angle_rad)
-                shell['vel_y'] = -power * math.sin(angle_rad) # Use negative sin
-                
-                shell['x'] = active_player['x']
-                shell['y'] = active_player['y']
-                shell['active'] = True
+            if event.key == pygame.K_SPACE:   # --- FIRE ---
+                active_shell = active_player.fire()
 
-    # - - - - -- Game Logic --- - - - - - 
-    if shell['active']:
-        # Apply gravity
-        shell['vel_y'] += GRAVITY
+    # %% - - - - -- Game Logic --- - - - - - 
+    if active_shell:
+        # Apply gravity and drag .... One time step at a time
+        (t,u,v,x,y) = active_shell.update()
+        collision_status = active_shell.check_collision(terrain, other_player.rect, SCREEN_WIDTH, SCREEN_HEIGHT)
         
-        # Update position
-        shell['x'] += shell['vel_x']
-        shell['y'] += shell['vel_y']
-        
-        # Collision checking (simplified)
-        shell_x_int = int(shell['x'])
-        
-        # Check terrain collision
-        if shell_x_int >= 0 and shell_x_int < SCREEN_WIDTH and shell['y'] >= terrain.y[shell_x_int]:
-            shell['active'] = False
-            print("Hit ground!")
-            current_player = (current_player + 1) % 2 # Switch turn
+        if collision_status:
+            if collision_status == 'HIT_PLAYER':
+                other_player.take_damage(20) # Deal damage
+                print(f"Player {current_player + 1} hits! Other player health: {other_player.health}")
+                # # Check for win
+                # if other_player.health <= 0:
+                #     game_state = "GAME_OVER"
+                #     winner = f"Player {current_player + 1} Wins!"
+                    # its turn is over.
+            elif collision_status == 'HIT_TERRAIN':   
+                print("Hit ground!")
+            active_shell = None # Destroy the shell
+            
+            if True: # game_state == "PLAYING":
+                # Switch turns
+                current_player = (current_player + 1) % 2
+                
 
-        # Check other player collision (TODO)
-        # ... check if shell rect hits other player rect ...
-        # if hit:
-        #    other_player['health'] -= 10
-        #    shell['active'] = False
-        #    current_player = (current_player + 1) % 2
-
-        # Check off-screen
-        if shell['x'] < 0 or shell['x'] > SCREEN_WIDTH or shell['y'] > SCREEN_HEIGHT:
-            shell['active'] = False
-            print("Missed!")
-            current_player = (current_player + 1) % 2 # Switch turn
-
-    # --- Drawing ---
-    screen.fill(BLACK) # Clear screen with a "sky" color
-
-    # Draw terrain
+    # %% --- Drawing ---
+    screen.fill(MIDNIGHT_BLUE) # Clear screen with a "sky" color
+    for star in stars:
+        pygame.draw.circle(screen, STAR_COLOR, star, 1) 
+    for cloud in clouds:
+        cloud.update() # Move the cloud
+        cloud.draw(screen) # Draw the cloud
+    # Draw terrain and players
     terrain.draw(screen)
+    player1.draw(screen)
+    player2.draw(screen)
 
-    # --- Draw Aiming Vector (NEW CODE) ---
-    if not shell['active']:
-        # Get the current player
-        active_player = players[current_player]
-        
-        # Get the player's center
-        start_x = active_player['x']
-        start_y = active_player['y']
-        
-        # Get angle and power
-        angle_rad = math.radians(active_player['angle'])
-        line_length = active_player['power'] # Use power for the line length
-        
-        # Calculate the end point
-        end_x = start_x + (line_length * math.cos(angle_rad))
-        end_y = start_y - (line_length * math.sin(angle_rad)) # Use negative sin for inverted Y-axis
-        
+    # --- Draw Aiming Vector  ---
+    if active_shell is None:
         # Draw the line
-        pygame.draw.line(screen, WHITE, (start_x, start_y), (int(end_x), int(end_y)), 2)
-
-
-    # Draw players
-    for player in players:
-        pygame.draw.rect(screen, player['color'], (player['x'] - 10, player['y'], 20, 20))
-        
-    # Draw shell
-    if shell['active']:
-        pygame.draw.circle(screen, WHITE, (int(shell['x']), int(shell['y'])), 5)
-
-    # ... draw UI ...
+        active_player.draw_aiming_vector(screen)
     
-    # --- Update Display ---
-    pygame.display.flip()
-
-
-
-    # Draw players
-    for player in players:
-        pygame.draw.rect(screen, player['color'], (player['x'] - 10, player['y'], 20, 20)) # Draw a simple tank
-        
-    # Draw shell
-    if shell['active']:
-        pygame.draw.circle(screen, WHITE, (int(shell['x']), int(shell['y'])), 5)
+    if active_shell:
+        active_shell.draw(screen)
 
     # Draw UI (Angle, Power)
-    ui_text = f"Player {current_player + 1} | Angle: {players[current_player]['angle']} | Power: {players[current_player]['power']}"
+    ui_text = f"Player {current_player + 1} | Angle: {active_player.angle} | Power: {active_player.power}"
     text_surface = font.render(ui_text, True, WHITE)
     screen.blit(text_surface, (10, 10))
 
@@ -171,6 +125,6 @@ while running:
     pygame.display.flip()
     
     # --- Frame Rate ---
-    clock.tick(60)
+    clock.tick(int(1/DT))
 
 pygame.quit()
