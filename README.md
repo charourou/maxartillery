@@ -6,7 +6,6 @@
 
 A retro-style, 2-player, turn-based artillery game built entirely in Python using the Pygame library. Inspired by MS-DOS classics like *Gorillas.bas* and *Scorched Earth*, this game features an authentic 8-bit aesthetic, custom physics, and competitive local multiplayer.
 
-> **[❗ PLACEHOLDER: GIF]**
 
 ## ✨ Features
 
