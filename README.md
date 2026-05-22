@@ -16,7 +16,7 @@ A retro-style, 2-player, turn-based artillery game built entirely in Python usin
 
 ## 🎮 Controls
 
-The game is played on a single keyboard (local multiplayer). 
+The game is played on a single keyboard (local multiplayer).
 
 | Action | Key |
 | :--- | :--- |
@@ -30,5 +30,6 @@ The game is played on a single keyboard (local multiplayer).
 
 To run this game locally on your machine, follow these steps:
 
-**Clone the repository:**
-
+- `pip install pygame`
+- **Clone the repository**
+- run `python artillery_basis.py`
